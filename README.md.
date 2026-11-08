@@ -1,0 +1,129 @@
+# EDU-BOT — kit de démarrage complet
+
+Application web pédagogique bilingue (français/anglais) pour Gestion et Analyse biomédicale.
+Architecture : FastAPI + Supabase (Auth/PostgreSQL) + Ollama (IA locale).
+
+## Ce que contient ce kit
+- `sql/schema.sql` : tables, fonctions, déclencheurs et politiques RLS.
+- `app/main.py` : API FastAPI, authentification Supabase, cours, exercices, examens, progression et assistant.
+- `app/static/index.html`, `app.js`, `style.css` : interface web responsive.
+- `.env.example` : variables de configuration.
+- `requirements.txt` : dépendances Python.
+
+## Important avant le test
+Ce kit est une première version fonctionnelle (MVP) à installer et tester. Il n'a pas encore été exécuté contre ton projet Supabase : il faudra vérifier les noms/permissions du projet, appliquer le SQL, puis lancer les tests. Ne mets jamais la clé `service_role` dans le navigateur ou dans un dépôt public.
+
+## Prérequis
+- Python 3.11 ou plus récent
+- Un projet Supabase gratuit
+- Ollama installé sur l'ordinateur pour utiliser l'IA locale (facultatif pour tester le reste)
+- Connexion Internet pour Supabase
+
+## Installation
+1. Décompresser le dossier `EDU-BOT`.
+2. Dans Supabase, ouvrir **SQL Editor**, coller `sql/schema.sql`, puis exécuter.
+3. Dans Supabase > Project Settings > API, récupérer :
+   - Project URL
+   - clé `anon` / publishable (jamais `service_role`)
+4. Copier `.env.example` vers `.env` et compléter `SUPABASE_URL` et `SUPABASE_ANON_KEY`.
+5. Ouvrir un terminal dans le dossier `EDU-BOT`, puis :
+   ```bash
+   python -m venv .venv
+   ```
+   Windows :
+   ```powershell
+   .venv\Scripts\activate
+   ```
+   Linux/macOS :
+   ```bash
+   source .venv/bin/activate
+   ```
+6. Installer :
+   ```bash
+   pip install -r requirements.txt
+   ```
+7. Démarrer :
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+8. Ouvrir `http://127.0.0.1:8000`.
+
+## Activer l'IA locale
+1. Installer Ollama depuis https://ollama.com
+2. Dans un terminal :
+   ```bash
+   ollama pull llama3.2:3b
+   ```
+3. Vérifier qu'Ollama fonctionne, puis laisser son service actif.
+4. Dans `.env`, garder `OLLAMA_MODEL=llama3.2:3b`.
+L'IA locale exige de la mémoire vive et un ordinateur allumé. Elle ne coûte pas de crédits API, mais l'électricité et l'accès Internet à Supabase peuvent toujours être nécessaires.
+
+## Créer un administrateur
+Par sécurité, aucun étudiant ne peut s'attribuer le rôle administrateur depuis l'inscription.
+1. Inscrire le compte qui doit être administrateur depuis l'application.
+2. Dans Supabase SQL Editor, exécuter en remplaçant l'adresse :
+   ```sql
+   update public.user_roles r
+   set role = 'admin'
+   from auth.users u
+   where r.user_id = u.id
+     and u.email = 'adresse-admin@example.com';
+   ```
+3. Déconnecter puis reconnecter ce compte.
+
+## Données de cours
+Un compte administrateur peut publier matières, cours, exercices et examens. Les données pédagogiques ne sont pas inventées automatiquement : ajoute des contenus validés par les enseignants. Le chatbot ne doit pas remplacer un enseignant ni une interprétation médicale professionnelle.
+
+## Limites connues de cette première version
+- Pas encore de paiement, notifications push, application mobile native ni hébergement public.
+- Les examens utilisent une correction automatique QCM simple ; il faudra compléter les règles (durée serveur, anti-triche, sauvegarde/résilience) avant un examen officiel.
+- Pour 100 étudiants, effectuer des tests de charge et vérifier les quotas gratuits Supabase et les capacités matérielles de l'ordinateur exécutant Ollama.
+- Les examens QCM ont maintenant des fonctions SQL `start_exam` et `submit_exam` : vérification de l'étudiant, durée côté serveur, validation des options et calcul de la note sur 20. Tester avec un examen de démonstration avant toute évaluation officielle.
+- Les fonctions de gestion sont volontairement simples ; faire une revue de sécurité avant un déploiement réel.
+
+## Tests de base
+- Inscrire un étudiant, confirmer l'e-mail si Supabase l'exige, puis se connecter.
+- Vérifier que son profil affiche la filière et le niveau choisis.
+- Ajouter des cours via un compte administrateur.
+- Vérifier que l'étudiant ne voit que les cours correspondant à sa filière/niveau.
+- Essayer l'assistant avec Ollama actif.
+- Créer un examen QCM, le passer et vérifier le résultat.
+
+
+## Espace administrateur (version 3)
+Après attribution du rôle `admin` à un compte de confiance, un onglet « Administration » apparaît :
+- consulter les étudiants inscrits et les compteurs ;
+- créer des matières, cours et exercices ;
+- créer des QCM avec options et bonne réponse ;
+- publier ou dépublier les examens.
+
+Pour créer une matière, le formulaire a besoin de l'identifiant de la filière. La version actuelle de l'interface utilise la liste des matières existantes pour retrouver cet identifiant ; si la filière n'a encore aucune matière, il faut d'abord créer la première matière via l'API ou utiliser l'ID de filière depuis Supabase. Cette limite sera supprimée dans la prochaine révision.
+
+Important : cette version est une base de développement. Le code a été vérifié syntaxiquement, mais n'a pas encore été testé contre votre projet Supabase ni contre Ollama. Ne l'utilisez pas avec de vraies données sensibles avant les tests et un audit de sécurité.
+
+
+## Suivi des résultats (version 4)
+- L'étudiant voit le nombre de cours terminés, les examens réalisés et sa moyenne calculée à partir de ses notes.
+- L'administrateur voit les tentatives d'examen, les notes, les statuts et la moyenne générale.
+- Les données proviennent des tentatives enregistrées en base ; une tentative non notée n'entre pas dans la moyenne.
+
+Limite : le tableau affiche les 500 tentatives les plus récentes. Les résultats restent soumis aux politiques RLS et aux droits de l'administrateur. Il faudra vérifier les relations imbriquées Supabase et tester les calculs avec des comptes réels avant mise en service.
+
+
+## Recherche pédagogique ciblée (version 5)
+Le chat ne transmet plus simplement les premiers cours publiés. Il :
+1. récupère le profil de l'étudiant ;
+2. filtre les cours publiés sur sa filière et son niveau ;
+3. classe jusqu'à 150 cours autorisés avec un score lexical local (titre et contenu) ;
+4. envoie au modèle Ollama jusqu'à cinq cours pertinents ;
+5. affiche les cours consultés sous la réponse.
+
+Cette version utilise un classement lexical simple, pas une recherche sémantique par embeddings. La pertinence dépend de la qualité des titres et contenus des cours. Une recherche vectorielle pourra être ajoutée ultérieurement si elle est nécessaire. Aucun appel à une API IA payante n'est ajouté.
+
+
+## Catalogue initial des matières (version 6)
+Le fichier `sql/catalogue_matieres.sql` prépare 70 entrées de matières : 7 matières pour chacune des 2 filières et chacun des 5 niveaux. Exécute-le après `sql/schema.sql`. Il est réexécutable sans créer de doublons. Ce catalogue est une base de départ à valider avec les enseignants ; il ne remplace pas les maquettes pédagogiques officielles. Voir `sql/GUIDE_CATALOGUE.md`.
+
+
+## Premiers contenus pédagogiques bilingues (version 7)
+Le fichier `sql/contenus_demo.sql` ajoute deux cours de démonstration (Gestion et Analyse biomédicale), deux exercices corrigés et deux QCM publiés, en français et en anglais, pour Licence 1. Exécutez-le après `sql/schema.sql` et `sql/catalogue_matieres.sql`. Voir `sql/GUIDE_CONTENUS_DEMO.md`. Ces contenus sont des exemples à faire valider par des enseignants ; ils ne constituent pas un programme officiel.
